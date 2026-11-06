@@ -1,11 +1,11 @@
 <?php
 /*
 Plugin Name: FreePass SEO Meta Generator
-Description: Генерация метатегов, Open Graph, Schema.org и канонического URL для страниц и постов.
+Description: Generates meta tags, Open Graph, Schema.org, and canonical URLs for pages and posts.
 Version: 1.8
 */
 
-// Подключаем скрипты медиатеки
+// Enqueue media library scripts
 function freepass_seo_enqueue_admin_scripts($hook) {
     if (in_array($hook, ['edit.php', 'post.php', 'post-new.php', 'settings_page_freepass-seo-meta-generator'])) {
         wp_enqueue_media();
@@ -13,22 +13,22 @@ function freepass_seo_enqueue_admin_scripts($hook) {
 }
 add_action('admin_enqueue_scripts', 'freepass_seo_enqueue_admin_scripts');
 
-// Функция определения типа страницы
+// Detect the page type
 function freepass_seo_get_schema_type($post) {
-    // Проверяем, задан ли тип схемы в метаполе
+    // Check whether the schema type is set in the meta field
     $schema_type = get_post_meta($post->ID, '_freepass_seo_schema_type', true);
 
     if ($schema_type) {
         return $schema_type;
     }
 
-    // Определяем тип схемы на основе типа поста и других критериев
+    // Determine the schema type from the post type and other criteria
     if (is_front_page() || is_home()) {
         return 'WebSite';
     } elseif ($post->post_type == 'post') {
         return 'Article';
     } elseif ($post->post_type == 'page') {
-        // Дополнительная логика для определения типа страницы
+        // Additional page type detection logic
         $slug = $post->post_name;
         if ($slug == 'contact') {
             return 'ContactPage';
@@ -42,24 +42,24 @@ function freepass_seo_get_schema_type($post) {
     }
 }
 
-// Сохранение метаданных при сохранении поста
+// Save metadata when the post is saved
 function freepass_seo_save_meta_data($post_id, $post, $update) {
-    // Проверки безопасности
+    // Security checks
     if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
     if (wp_is_post_revision($post_id)) return;
     if (!current_user_can('edit_post', $post_id)) return;
 
-    // Проверяем, отключено ли автообновление метаданных
+    // Check whether metadata auto-update is disabled
     $disable_auto_update = get_post_meta($post_id, '_freepass_seo_disable_auto_update', true);
 
-    // Если автообновление отключено, выходим из функции
+    // Exit if auto-update is disabled
     if ($disable_auto_update) {
         return;
     }
 
-    // Проверяем тип поста
+    // Check the post type
     if ($post->post_type === 'post' || $post->post_type === 'page') {
-        // Получаем данные поста
+        // Get post data
         $title = get_the_title($post_id);
         $content = $post->post_content;
         $auto_description = wp_trim_words(wp_strip_all_tags(strip_shortcodes($content)), 25, '...');
@@ -70,25 +70,25 @@ function freepass_seo_save_meta_data($post_id, $post, $update) {
         $date_modified = get_the_modified_date('c', $post_id);
         $canonical_url = get_permalink($post_id);
 
-        // Получаем метаданные из пользовательского ввода
+        // Get metadata from user input
         $custom_meta_description = get_post_meta($post_id, '_freepass_seo_meta_description', true);
         $custom_og_title = get_post_meta($post_id, '_freepass_seo_og_title', true);
         $custom_og_description = get_post_meta($post_id, '_freepass_seo_og_description', true);
         $custom_og_image = get_post_meta($post_id, '_freepass_seo_og_image', true);
 
-        // Используем пользовательские значения, если они есть
+        // Use custom values if present
         $description = !empty($custom_meta_description) ? $custom_meta_description : $auto_description;
         $og_title = $title;
         $og_description = !empty($custom_og_description) ? $custom_og_description : $auto_description;
         $image = !empty($custom_og_image) ? $custom_og_image : $auto_image;
 
-        // Сохраняем метаданные для отображения в колонках и Quick Edit
+        // Save metadata for list columns and Quick Edit
         update_post_meta($post_id, '_freepass_seo_meta_description', $description);
         update_post_meta($post_id, '_freepass_seo_og_title', $og_title);
         update_post_meta($post_id, '_freepass_seo_og_description', $og_description);
         update_post_meta($post_id, '_freepass_seo_og_image', $image);
 
-        // Генерируем HTML-код метатегов
+        // Generate meta tags HTML
         $meta_tags = '';
         $meta_tags .= '<html prefix="og: http://ogp.me/ns#">' . "\n";
 
@@ -114,22 +114,22 @@ function freepass_seo_save_meta_data($post_id, $post, $update) {
         $meta_tags .= '<meta property="og:type" content="article">' . "\n";
         $meta_tags .= '<meta property="og:url" content="' . esc_url($canonical_url) . '">' . "\n";
 
-        // Определяем тип схемы
+        // Determine the schema type
         $schema_type = freepass_seo_get_schema_type($post);
 
-        // Генерируем разметку Schema.org
+        // Generate Schema.org markup
         $schema = [
             "@context" => "https://schema.org",
             "@type" => $schema_type,
         ];
 
-        // Получаем пользовательские значения из метаполей
+        // Get custom values from meta fields
         $alternative_headline = get_post_meta($post_id, '_freepass_seo_alternative_headline', true);
         $editor = get_post_meta($post_id, '_freepass_seo_editor', true);
         $keywords = get_post_meta($post_id, '_freepass_seo_keywords', true);
         $in_language = get_post_meta($post_id, '_freepass_seo_in_language', true);
 
-        // Заполняем данные Schema.org в зависимости от типа
+        // Fill Schema.org data depending on the type
         if (in_array($schema_type, ['Article', 'BlogPosting'])) {
             $schema['headline'] = $og_title;
             if ($alternative_headline) {
@@ -154,7 +154,7 @@ function freepass_seo_save_meta_data($post_id, $post, $update) {
             if ($keywords) {
                 $schema['keywords'] = $keywords;
             }
-            $schema['articleSection'] = strip_tags(get_the_category_list(', ', '', $post_id)); // Категории
+            $schema['articleSection'] = strip_tags(get_the_category_list(', ', '', $post_id)); // Categories
             $content_spaced = preg_replace('/<\/[^>]+>/', '$0 ', strip_shortcodes($content));
             $content_clean = wp_strip_all_tags($content_spaced);                                  
             $content_escaped = str_replace('"', '\"', $content_clean);                          
@@ -194,7 +194,7 @@ function freepass_seo_save_meta_data($post_id, $post, $update) {
             $schema['priceRange'] = $price_range;
         }
 
-        // Общие статические поля для Organization
+        // Common static fields for Organization
         $organization = [
             '@type' => 'Organization',
             'name' => get_option('freepass_seo_org_name', 'FreePass Asia'),
@@ -203,7 +203,7 @@ function freepass_seo_save_meta_data($post_id, $post, $update) {
                 '@type' => 'ImageObject',
                 'url' => get_option('freepass_seo_org_logo', get_template_directory_uri() . '/images/logo.png')
             ],
-            // Добавьте социальные профили
+            // Add social profiles
             'sameAs' => [
                 'https://www.facebook.com/groups/freepass.asia',
                 'https://www.instagram.com/freepass_asia/',
@@ -211,7 +211,7 @@ function freepass_seo_save_meta_data($post_id, $post, $update) {
                 'https://www.threads.net/@freepass_asia',
                 'https://linkedin.com/company/freepass-asia'
             ],
-            // Контактная информация
+            // Contact information
             'contactPoint' => [
                 '@type' => 'ContactPoint',
                 'telephone' => get_option('freepass_seo_org_phone', '+66 69 4538 8352'),
@@ -221,27 +221,27 @@ function freepass_seo_save_meta_data($post_id, $post, $update) {
             ]
         ];
 
-        // Вложим Organization в основной Schema
+        // Nest Organization into the main schema
         if ($schema_type != 'WebSite') {
             $schema['publisher'] = $organization;
         } else {
             $schema = array_merge($schema, $organization);
         }
 
-        // Генерируем JSON-LD
+        // Generate JSON-LD
         //$schema_org_json = wp_json_encode($schema);
         $schema_org_json = wp_json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 
-        // Добавляем Schema.org в метатеги
+        // Add Schema.org to the meta tags
         $meta_tags .= '<script type="application/ld+json">' . $schema_org_json . '</script>' . "\n";
 
-        // Сохраняем HTML-код метатегов в метаполе
+        // Save the meta tags HTML to a meta field
         update_post_meta($post_id, '_freepass_seo_meta_tags_html', $meta_tags);
     }
 }
 add_action('save_post', 'freepass_seo_save_meta_data', 10, 3);
 
-// Вывод метатегов в <head>
+// Output meta tags in <head>
 function freepass_seo_output_meta_tags() {
     global $post;
 
@@ -249,13 +249,13 @@ function freepass_seo_output_meta_tags() {
         return;
     }
 
-    // Получаем сохраненный HTML-код метатегов
+    // Get the saved meta tags HTML
     $meta_tags = '';
 
     if (is_singular(['post', 'page'])) {
         $meta_tags = get_post_meta($post->ID, '_freepass_seo_meta_tags_html', true);
     } elseif (is_front_page() || is_home()) {
-        // Генерируем Schema.org для главной страницы
+        // Generate Schema.org for the front page
         $meta_tags = freepass_seo_generate_home_schema();
     }
 
@@ -263,12 +263,12 @@ function freepass_seo_output_meta_tags() {
         echo $meta_tags;
     }
 }
-// Устанавливаем приоритет 1, чтобы метатеги выводились первыми
+// Priority 1 so the meta tags are output first
 add_action('wp_head', 'freepass_seo_output_meta_tags', 1);
 
-// Функция генерации Schema.org для главной страницы
+// Generate Schema.org for the front page
 function freepass_seo_generate_home_schema() {
-    // Генерируем разметку для WebSite
+    // Generate WebSite markup
     $schema = [
         "@context" => "https://schema.org",
         "@type" => "WebSite",
@@ -279,7 +279,7 @@ function freepass_seo_generate_home_schema() {
             'target' => home_url('/?s={search_term_string}'),
             'query-input' => 'required name=search_term_string'
         ],
-        // Общие статические поля для Organization
+        // Common static fields for Organization
         '@type' => 'Organization',
         'name' => get_option('freepass_seo_org_name', 'FreePass Asia'),
         'url' => get_option('freepass_seo_org_url', home_url()),
@@ -287,7 +287,7 @@ function freepass_seo_generate_home_schema() {
             '@type' => 'ImageObject',
             'url' => get_option('freepass_seo_org_logo', get_template_directory_uri() . '/images/logo.png')
         ],
-        // Добавьте социальные профили
+        // Add social profiles
         'sameAs' => [
             'https://www.facebook.com/groups/freepass.asia',
             'https://www.instagram.com/freepass_asia/',
@@ -295,7 +295,7 @@ function freepass_seo_generate_home_schema() {
             'https://www.threads.net/@freepass_asia',
             'https://linkedin.com/company/freepass-asia'
         ],
-        // Контактная информация
+        // Contact information
         'contactPoint' => [
             '@type' => 'ContactPoint',
             'telephone' => get_option('freepass_seo_org_phone', '+66 69 4538 8352'),
@@ -309,19 +309,19 @@ function freepass_seo_generate_home_schema() {
     return '<script type="application/ld+json">' . wp_json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . '</script>' . "\n";
 }
 
-// Добавляем новые колонки в список постов
+// Add new columns to the post list
 function freepass_seo_add_custom_columns($columns) {
     $columns['meta_description'] = 'Meta Description';
     $columns['og_title'] = 'OG Title';
     $columns['og_description'] = 'OG Description';
     $columns['og_image'] = 'OG Image';
-    $columns['disable_auto_update'] = 'Отключить автообновление';
+    $columns['disable_auto_update'] = 'Disable auto-update';
     return $columns;
 }
 add_filter('manage_post_posts_columns', 'freepass_seo_add_custom_columns');
 add_filter('manage_page_posts_columns', 'freepass_seo_add_custom_columns');
 
-// Заполняем новые колонки данными
+// Fill the new columns with data
 function freepass_seo_custom_column_content($column_name, $post_id) {
     if ($column_name == 'meta_description') {
         echo esc_html(get_post_meta($post_id, '_freepass_seo_meta_description', true));
@@ -340,13 +340,13 @@ function freepass_seo_custom_column_content($column_name, $post_id) {
     }
     if ($column_name == 'disable_auto_update') {
         $disable_auto_update = get_post_meta($post_id, '_freepass_seo_disable_auto_update', true);
-        echo $disable_auto_update ? 'Да' : 'Нет';
+        echo $disable_auto_update ? 'Yes' : 'No';
     }
 }
 add_action('manage_post_posts_custom_column', 'freepass_seo_custom_column_content', 10, 2);
 add_action('manage_page_posts_custom_column', 'freepass_seo_custom_column_content', 10, 2);
 
-// Добавляем поля в Quick Edit
+// Add fields to Quick Edit
 function freepass_seo_quick_edit_custom_box($column_name, $post_type) {
     if (in_array($post_type, ['post', 'page'])) {
         if (in_array($column_name, ['meta_description', 'og_title', 'og_description', 'og_image', 'disable_auto_update'])) {
@@ -356,15 +356,15 @@ function freepass_seo_quick_edit_custom_box($column_name, $post_type) {
                     <?php if ($column_name == 'disable_auto_update') : ?>
                         <label class="alignleft">
                             <input type="checkbox" name="disable_auto_update" value="1">
-                            <span class="checkbox-title">Отключить автообновление</span>
+                            <span class="checkbox-title">Disable auto-update</span>
                         </label>
                     <?php else: ?>
                         <label>
                             <span class="title"><?php echo esc_html(ucwords(str_replace('_', ' ', $column_name))); ?></span>
                             <span class="input-text-wrap">
                                 <?php if ($column_name == 'og_image') : ?>
-                                    <input type="text" name="<?php echo esc_attr($column_name); ?>" value="" placeholder="Выберите изображение" readonly style="width: 80%;">
-                                    <button type="button" class="button select-image-button" data-target="<?php echo esc_attr($column_name); ?>">Выбрать изображение</button>
+                                    <input type="text" name="<?php echo esc_attr($column_name); ?>" value="" placeholder="Select an image" readonly style="width: 80%;">
+                                    <button type="button" class="button select-image-button" data-target="<?php echo esc_attr($column_name); ?>">Select image</button>
                                 <?php else : ?>
                                     <input type="text" name="<?php echo esc_attr($column_name); ?>" value="">
                                 <?php endif; ?>
@@ -379,9 +379,9 @@ function freepass_seo_quick_edit_custom_box($column_name, $post_type) {
 }
 add_action('quick_edit_custom_box', 'freepass_seo_quick_edit_custom_box', 10, 2);
 
-// Сохранение данных из Quick Edit
+// Save Quick Edit data
 function freepass_seo_save_quick_edit_data($post_id) {
-    // Проверки безопасности
+    // Security checks
     if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
     if (!current_user_can('edit_post', $post_id)) return;
 
@@ -406,7 +406,7 @@ function freepass_seo_save_quick_edit_data($post_id) {
 
 add_action('save_post', 'freepass_seo_save_quick_edit_data');
 
-// Добавляем JavaScript для Quick Edit
+// Add JavaScript for Quick Edit
 function freepass_seo_quick_edit_javascript() {
     global $current_screen;
     if (($current_screen->post_type == 'post' || $current_screen->post_type == 'page') && $current_screen->base == 'edit') {
@@ -427,7 +427,7 @@ function freepass_seo_quick_edit_javascript() {
                         var og_title = $post_row.find('.column-og_title').text();
                         var og_description = $post_row.find('.column-og_description').text();
                         var og_image = $post_row.find('.column-og_image img').attr('src') || '';
-                        var disable_auto_update = $post_row.find('.column-disable_auto_update').text().trim() === 'Да';
+                        var disable_auto_update = $post_row.find('.column-disable_auto_update').text().trim() === 'Yes';
 
                         $edit_row.find('input[name="meta_description"]').val(meta_description);
                         $edit_row.find('input[name="og_title"]').val(og_title);
@@ -437,16 +437,16 @@ function freepass_seo_quick_edit_javascript() {
                     }
                 };
 
-                // Открытие медиатеки при нажатии на кнопку
+                // Open the media library on button click
                 $(document).on('click', '.select-image-button', function(e) {
                     e.preventDefault();
                     var button = $(this);
                     var target = button.data('target');
                     var input = $('input[name="' + target + '"]');
                     var frame = wp.media({
-                        title: 'Выберите изображение',
+                        title: 'Select an image',
                         button: {
-                            text: 'Использовать это изображение'
+                            text: 'Use this image'
                         },
                         multiple: false
                     });
@@ -463,7 +463,7 @@ function freepass_seo_quick_edit_javascript() {
 }
 add_action('admin_footer', 'freepass_seo_quick_edit_javascript');
 
-// Добавляем стили для Quick Edit
+// Add styles for Quick Edit
 function freepass_seo_quick_edit_styles() {
     global $current_screen;
     if (($current_screen->post_type == 'post' || $current_screen->post_type == 'page') && $current_screen->base == 'edit') {
@@ -499,11 +499,11 @@ function freepass_seo_quick_edit_styles() {
 }
 add_action('admin_head', 'freepass_seo_quick_edit_styles');
 
-// Добавляем метабоксы для Schema.org и Meta Tags
+// Add meta boxes for Schema.org and Meta Tags
 function freepass_seo_add_meta_boxes() {
     add_meta_box(
         'freepass_seo_schema_meta',
-        'Schema.org Метаданные',
+        'Schema.org Metadata',
         'freepass_seo_schema_meta_box_callback',
         ['post', 'page'],
         'normal',
@@ -521,11 +521,11 @@ function freepass_seo_add_meta_boxes() {
 }
 add_action('add_meta_boxes', 'freepass_seo_add_meta_boxes');
 
-// Колбэк для метабокса Schema.org
+// Schema.org meta box callback
 function freepass_seo_schema_meta_box_callback($post) {
     wp_nonce_field('freepass_seo_schema_meta_box', 'freepass_seo_schema_meta_box_nonce');
 
-    // Получаем текущие значения метаданных
+    // Get current metadata values
     $schema_type = get_post_meta($post->ID, '_freepass_seo_schema_type', true);
     $service_type = get_post_meta($post->ID, '_freepass_seo_service_type', true);
     $area_served = get_post_meta($post->ID, '_freepass_seo_area_served', true);
@@ -536,12 +536,12 @@ function freepass_seo_schema_meta_box_callback($post) {
     $in_language = get_post_meta($post->ID, '_freepass_seo_in_language', true);
     $disable_auto_update = get_post_meta($post->ID, '_freepass_seo_disable_auto_update', true);
 
-    // Поля метабокса
+    // Meta box fields
     ?>
     <p>
-        <label for="freepass_seo_schema_type">Тип Schema.org:</label>
+        <label for="freepass_seo_schema_type">Schema.org type:</label>
         <select name="freepass_seo_schema_type" id="freepass_seo_schema_type">
-            <option value="">Автоопределение</option>
+            <option value="">Auto-detect</option>
             <option value="Article" <?php selected($schema_type, 'Article'); ?>>Article</option>
             <option value="BlogPosting" <?php selected($schema_type, 'BlogPosting'); ?>>BlogPosting</option>
             <option value="WebPage" <?php selected($schema_type, 'WebPage'); ?>>WebPage</option>
@@ -550,43 +550,43 @@ function freepass_seo_schema_meta_box_callback($post) {
             <option value="Service" <?php selected($schema_type, 'Service'); ?>>Service</option>
         </select>
     </p>
-    <!-- Общие поля -->
+    <!-- Common fields -->
     <p>
-        <label for="freepass_seo_alternative_headline">Альтернативный заголовок:</label>
+        <label for="freepass_seo_alternative_headline">Alternative headline:</label>
         <input type="text" name="freepass_seo_alternative_headline" id="freepass_seo_alternative_headline" value="<?php echo esc_attr($alternative_headline); ?>">
     </p>
     <p>
-        <label for="freepass_seo_editor">Редактор статьи:</label>
+        <label for="freepass_seo_editor">Article editor:</label>
         <input type="text" name="freepass_seo_editor" id="freepass_seo_editor" value="<?php echo esc_attr($editor); ?>">
     </p>
     <p>
-        <label for="freepass_seo_keywords">Ключевые слова:</label>
+        <label for="freepass_seo_keywords">Keywords:</label>
         <input type="text" name="freepass_seo_keywords" id="freepass_seo_keywords" value="<?php echo esc_attr($keywords); ?>">
     </p>
     <p>
-        <label for="freepass_seo_in_language">Язык страницы:</label>
+        <label for="freepass_seo_in_language">Page language:</label>
         <input type="text" name="freepass_seo_in_language" id="freepass_seo_in_language" value="<?php echo esc_attr($in_language); ?>">
     </p>
-    <!-- Поля для Service -->
+    <!-- Service fields -->
     <div id="service-fields" <?php if ($schema_type != 'Service') echo 'style="display:none;"'; ?>>
         <p>
-            <label for="freepass_seo_service_type">Тип услуги:</label>
+            <label for="freepass_seo_service_type">Service type:</label>
             <input type="text" name="freepass_seo_service_type" id="freepass_seo_service_type" value="<?php echo esc_attr($service_type); ?>">
         </p>
         <p>
-            <label for="freepass_seo_area_served">Регион обслуживания:</label>
+            <label for="freepass_seo_area_served">Area served:</label>
             <input type="text" name="freepass_seo_area_served" id="freepass_seo_area_served" value="<?php echo esc_attr($area_served); ?>">
         </p>
         <p>
-            <label for="freepass_seo_price_range">Диапазон цен:</label>
+            <label for="freepass_seo_price_range">Price range:</label>
             <input type="text" name="freepass_seo_price_range" id="freepass_seo_price_range" value="<?php echo esc_attr($price_range); ?>">
         </p>
     </div>
-    <!-- Чекбокс для отключения автообновления -->
+    <!-- Checkbox to disable auto-update -->
     <p>
         <label>
             <input type="checkbox" name="freepass_seo_disable_auto_update" value="1" <?php checked($disable_auto_update, '1'); ?>>
-            Отключить автообновление метаданных
+            Disable metadata auto-update
         </label>
     </p>
     <script type="text/javascript">
@@ -603,9 +603,9 @@ function freepass_seo_schema_meta_box_callback($post) {
     <?php
 }
 
-// Сохранение данных метабокса Schema.org
+// Save Schema.org meta box data
 function freepass_seo_save_schema_meta_box_data($post_id) {
-    // Проверки безопасности
+    // Security checks
     if (!isset($_POST['freepass_seo_schema_meta_box_nonce'])) {
         return;
     }
@@ -619,7 +619,7 @@ function freepass_seo_save_schema_meta_box_data($post_id) {
         return;
     }
 
-    // Сохраняем данные
+    // Save data
     $fields = [
         'freepass_seo_schema_type',
         'freepass_seo_service_type',
@@ -639,16 +639,16 @@ function freepass_seo_save_schema_meta_box_data($post_id) {
         }
     }
 
-    // Сохраняем значение чекбокса
+    // Save the checkbox value
     $disable_auto_update = isset($_POST['freepass_seo_disable_auto_update']) ? '1' : '';
     update_post_meta($post_id, '_freepass_seo_disable_auto_update', $disable_auto_update);
 }
 
-// Колбэк для метабокса Meta Tags
+// Meta Tags meta box callback
 function freepass_seo_meta_tags_meta_box_callback($post) {
     wp_nonce_field('freepass_seo_meta_tags_meta_box', 'freepass_seo_meta_tags_meta_box_nonce');
 
-    // Получаем текущие значения метаданных
+    // Get current metadata values
     $meta_description = get_post_meta($post->ID, '_freepass_seo_meta_description', true);
     $og_title = get_post_meta($post->ID, '_freepass_seo_og_title', true);
     $og_description = get_post_meta($post->ID, '_freepass_seo_og_description', true);
@@ -670,16 +670,16 @@ function freepass_seo_meta_tags_meta_box_callback($post) {
     <p>
         <label for="freepass_seo_og_image">OG Image:</label>
         <input type="text" name="freepass_seo_og_image" id="freepass_seo_og_image" value="<?php echo esc_attr($og_image); ?>" style="width:80%;" readonly>
-        <button type="button" class="button select-og-image-button">Выбрать изображение</button>
+        <button type="button" class="button select-og-image-button">Select image</button>
     </p>
     <script type="text/javascript">
         jQuery(document).ready(function($){
             $('.select-og-image-button').click(function(e) {
                 e.preventDefault();
                 var frame = wp.media({
-                    title: 'Выберите изображение',
+                    title: 'Select an image',
                     button: {
-                        text: 'Использовать это изображение'
+                        text: 'Use this image'
                     },
                     multiple: false
                 });
@@ -694,15 +694,15 @@ function freepass_seo_meta_tags_meta_box_callback($post) {
     <?php
 }
 
-// Сохранение данных метабокса Meta Tags
+// Save Meta Tags meta box data
 function freepass_seo_save_meta_tags_meta_box_data($post_id) {
-    // Проверки безопасности
+    // Security checks
     if (!isset($_POST['freepass_seo_meta_tags_meta_box_nonce'])) return;
     if (!wp_verify_nonce($_POST['freepass_seo_meta_tags_meta_box_nonce'], 'freepass_seo_meta_tags_meta_box')) return;
     if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
     if (!current_user_can('edit_post', $post_id)) return;
 
-    // Сохраняем данные
+    // Save data
     $fields = [
         'freepass_seo_meta_description',
         'freepass_seo_og_title',
@@ -719,11 +719,11 @@ function freepass_seo_save_meta_tags_meta_box_data($post_id) {
     }
 }
 
-// Сохранение данных метабоксов
+// Save meta box data
 add_action('save_post', 'freepass_seo_save_schema_meta_box_data');
 add_action('save_post', 'freepass_seo_save_meta_tags_meta_box_data');
 
-// Добавляем страницу настроек плагина
+// Add the plugin settings page
 function freepass_seo_add_admin_menu() {
     add_options_page(
         'FreePass SEO Meta Generator',
@@ -735,11 +735,11 @@ function freepass_seo_add_admin_menu() {
 }
 add_action('admin_menu', 'freepass_seo_add_admin_menu');
 
-// Страница настроек
+// Settings page
 function freepass_seo_options_page() {
     ?>
     <div class="wrap">
-        <h1>Настройки FreePass SEO Meta Generator</h1>
+        <h1>FreePass SEO Meta Generator Settings</h1>
         <form method="post" action="options.php">
             <?php
             settings_fields('freepass_seo_settings_group');
@@ -747,29 +747,29 @@ function freepass_seo_options_page() {
             ?>
             <table class="form-table">
                 <tr valign="top">
-                    <th scope="row">Название организации</th>
+                    <th scope="row">Organization name</th>
                     <td><input type="text" name="freepass_seo_org_name" value="<?php echo esc_attr(get_option('freepass_seo_org_name')); ?>" /></td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row">URL организации</th>
+                    <th scope="row">Organization URL</th>
                     <td><input type="text" name="freepass_seo_org_url" value="<?php echo esc_attr(get_option('freepass_seo_org_url')); ?>" /></td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row">Логотип организации</th>
+                    <th scope="row">Organization logo</th>
                     <td>
                         <input type="text" name="freepass_seo_org_logo" id="freepass_seo_org_logo" value="<?php echo esc_attr(get_option('freepass_seo_org_logo')); ?>" />
-                        <button type="button" class="button select-logo-button">Выбрать логотип</button>
+                        <button type="button" class="button select-logo-button">Select logo</button>
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row">Телефон</th>
+                    <th scope="row">Phone</th>
                     <td><input type="text" name="freepass_seo_org_phone" value="<?php echo esc_attr(get_option('freepass_seo_org_phone')); ?>" /></td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row">Контактный email</th>
+                    <th scope="row">Contact email</th>
                     <td><input type="email" name="freepass_seo_org_email" value="<?php echo esc_attr(get_option('freepass_seo_org_email')); ?>" /></td>
                 </tr>
-                <!-- Добавьте другие поля по необходимости -->
+                <!-- Add more fields here -->
             </table>
             <?php submit_button(); ?>
         </form>
@@ -779,9 +779,9 @@ function freepass_seo_options_page() {
             $('.select-logo-button').click(function(e) {
                 e.preventDefault();
                 var frame = wp.media({
-                    title: 'Выберите логотип',
+                    title: 'Select a logo',
                     button: {
-                        text: 'Использовать этот логотип'
+                        text: 'Use this logo'
                     },
                     multiple: false
                 });
@@ -796,14 +796,14 @@ function freepass_seo_options_page() {
     <?php
 }
 
-// Регистрация настроек
+// Register settings
 function freepass_seo_register_settings() {
     register_setting('freepass_seo_settings_group', 'freepass_seo_org_name');
     register_setting('freepass_seo_settings_group', 'freepass_seo_org_url');
     register_setting('freepass_seo_settings_group', 'freepass_seo_org_logo');
     register_setting('freepass_seo_settings_group', 'freepass_seo_org_phone');
     register_setting('freepass_seo_settings_group', 'freepass_seo_org_email');
-    // Зарегистрируйте другие поля по необходимости
+    // Register more fields here
 }
 add_action('admin_init', 'freepass_seo_register_settings');
 ?>
